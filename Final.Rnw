@@ -1,0 +1,114 @@
+\documentclass{article}
+\usepackage{graphicx}
+\title{Task 3.3}
+
+\begin{document}
+	\maketitle
+	
+\SweaveOpts{concordance=TRUE}
+
+<<warning = FALSE, message = FALSE, fig = FALSE>>=
+
+# Download package "Sim.DiffProc", version 2.5
+# library(devtools)
+# install_version("Sim.DiffProc", version = "2.5",
+#                 repos = "http://cran.us.r-project.org")
+
+# Libraries
+library(Sim.DiffProc)
+
+calculate_fair_spread <- function(p_x0, p_r, p_sigma){
+  
+  # Quarterly premium payments
+  paym_times = seq(from = 0.25, to = 5, by = 0.25)
+  paym_number = 20
+  
+  # Parameters for CIR function that simulates the process
+  # which remains constant
+  N = 1000
+  M = 100
+  t0 = 0
+  theta = 1
+  
+  # Other parameters
+  rate = 0.01
+  LGD = 0.6
+  delta_t = 0.25
+  
+  # Vectors to store intermediate results
+  gamma_integrals = rep(NA, paym_number)
+  exponents_of_rate = rep(NA, paym_number)
+  exponents_of_gamma = rep(NA, paym_number)
+  
+  # Loop over all premium payments
+  for (i in 1:paym_number) 
+  {
+    t = paym_times[i]
+    
+    # Simulate CIR process
+    CIR_result = CIR(N = N,
+                     M = M,
+                     t0 = t0,
+                     T = t,
+                     x0 = p_x0,
+                     theta = theta,
+                     r = p_r,
+                     sigma = p_sigma)
+    
+    # Average process trajectory
+    gamma_average = mean(CIR_result$X.mean)
+    
+    # Monte Carlo integration
+    gamma_integrals[i] = gamma_average * t
+    
+    # Apply exponent function
+    exponents_of_gamma[i] = exp(-gamma_integrals[i])
+    exponents_of_rate[i] = exp(-rate*t)
+  }
+  
+  fair_spread = LGD * (exponents_of_rate[1] - exponents_of_rate[paym_number] * 
+    exponents_of_gamma[paym_number] + exponents_of_gamma[1:(paym_number - 1)] %*%
+    (exponents_of_rate[2:paym_number] - exponents_of_rate[1:(paym_number - 1)])) /
+    (delta_t * exponents_of_rate %*% exponents_of_gamma)
+  
+  return(fair_spread)
+}
+
+# Parameters for CIR function that simulates the process
+x0 = 0.03
+r = 0.04
+sigma = 0.2
+
+calculate_fair_spread(p_x0 = x0,
+                      p_r = r,
+                      p_sigma = sigma)
+@
+
+<<warning = FALSE, message = FALSE, fig = FALSE>>=
+# Increase x0
+x0_increased = 0.3
+calculate_fair_spread(p_x0 = x0_increased,
+                      p_r = r,
+                      p_sigma = sigma)
+# Increase r
+r_increased = 0.4
+calculate_fair_spread(p_x0 = x0,
+                      p_r = r_increased,
+                      p_sigma = sigma)
+# Increase sigma
+sigma_increased = 0.28
+calculate_fair_spread(p_x0 = x0,
+                      p_r = r,
+                      p_sigma = sigma_increased)
+@
+
+As a result we got fair spread $X^{*} \approx 0.023$.
+
+When we increased $\psi_0$ from 0.03 to 0.3 we got $X^{*}_{new} \approx 0.06 > X^{*}$.
+
+When we increased $\theta$ from 0.04 to 0.4 we got $X^{*}_{new} \approx 0.179 > X^{*}$.
+
+When we increased $\sigma$ from 0.2 to 0.28 we got $X^{*}_{new} \approx 0.0228 \approx X^{*}$.
+
+
+\end{document}
